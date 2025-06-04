@@ -126,17 +126,38 @@ class MessageEvents(commands.Cog):
             timestamp=discord.utils.utcnow(),
         )
         embed.set_author(name=before.author.display_name, icon_url=before.author.display_avatar.url)
-        embed.add_field(name="Before", value=before.content, inline=False)
-        embed.add_field(name="After", value=after.content, inline=False)
-        search_terms = f"""
-                        ```Edited in {before.channel.id}\nEdited by {before.author.id}\nMessage edited in {before.channel.id} by {before.author.id}```
-                        """
+
+        before_content = before.content if before.content else "*[No content]*"
+        after_content = after.content if after.content else "*[No content]*"
+
+        # Discord embed field limit is 1024 chars
+        if len(before_content) > 1024:
+            before_content = before_content[:1021] + "..."
+        if len(after_content) > 1024:
+            after_content = after_content[:1021] + "..."
+
+        embed.add_field(name="Before", value=before_content, inline=False)
+        embed.add_field(name="After", value=after_content, inline=False)
+
+        search_terms = (
+            f"```Edited in {before.channel.id}\n"
+            f"Edited by {before.author.id}\n"
+            f"Message edited in {before.channel.id} by {before.author.id}```"
+        )
 
         embed.add_field(name="Search terms", value=search_terms, inline=False)
         embed.set_footer(text="Input the search terms in your discord search bar to easily sort through specific logs")
 
         message_logging_channel = self.bot._get_channel(Reference.Channels.Logging.message_actions)
-        await message_logging_channel.send(embed=embed)
+
+        #Fix: validate embed before sending to avoid 400 Bad Request
+        try:
+            if embed and (embed.title or embed.description or embed.fields):
+                await message_logging_channel.send(embed=embed)
+            else:
+                print("[MessageEvents] Skipped sending embed: Embed is empty or invalid.")
+        except discord.HTTPException as e:
+            print(f"[MessageEvents] Failed to send edited message embed: {e}\nEmbed: {embed.to_dict()}")
 
     async def translate_bannsystem(self, message: discord.Message):
         """
